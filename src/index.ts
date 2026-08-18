@@ -2,6 +2,14 @@
  * @munin/core — Zero-knowledge media memory library.
  *
  * Library entry point. Exports the createMunin factory function and all public types.
+ *
+ * This entry point is React Native / Metro safe — it contains ZERO imports from
+ * Node-only dependencies (better-sqlite3, firebase-admin, fastify).
+ *
+ * For Node-only backends, use sub-path imports:
+ *   import { SQLiteBackend } from '@munin/core/sqlite';
+ *   import { FirestoreBackend } from '@munin/core/firestore';
+ *   import { createStorageFromEnv } from '@munin/core/config';
  */
 
 import type { MuninConfig } from './types/config.js';
@@ -41,7 +49,7 @@ export interface MuninInstance {
  * @example
  * ```typescript
  * import { createMunin } from '@munin/core';
- * import { SQLiteBackend } from '@munin/core/storage/sqlite';
+ * import { SQLiteBackend } from '@munin/core/sqlite';
  *
  * const munin = createMunin({
  *   storage: new SQLiteBackend('./munin.db'),
@@ -126,9 +134,8 @@ export type { ContributionEntry, ContributionInput, ContributionResult, Deletion
 export type { StorageBackend, DeletionCounts } from './storage/types.js';
 export type { MediaDatabaseAdapter, TitleMetadata, SeriesMetadata } from './adapters/types.js';
 export type { MuninEvents, ConflictDetectedEvent } from './core/events.js';
+
+// Platform-agnostic runtime exports (no native deps)
 export { MuninEventEmitter } from './core/events.js';
 export { InMemoryBackend } from './storage/memory.js';
-export { SQLiteBackend } from './storage/sqlite.js';
-export { FirestoreBackend } from './storage/firestore.js';
 export { ManualEntryAdapter } from './adapters/manual.js';
-export { createStorageFromEnv } from './config/storage-factory.js';

@@ -10,6 +10,21 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js"
     },
+    "./sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js",
+      "require": "./dist/sqlite.js"
+    },
+    "./firestore": {
+      "types": "./dist/firestore.d.ts",
+      "import": "./dist/firestore.js",
+      "require": "./dist/firestore.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js",
+      "require": "./dist/config.js"
+    },
     "./server": {
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
@@ -24,17 +39,24 @@
     "lint": "tsc --noEmit",
     "start": "node dist/server.js"
   },
-  "dependencies": {
-    "better-sqlite3": "^11.0.0",
-    "fastify": "^4.28.0"
-  },
+  "dependencies": {},
   "optionalDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "fastify": "^4.28.0",
     "firebase-admin": "^12.0.0"
   },
   "peerDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "fastify": "^4.28.0",
     "firebase-admin": "^12.0.0"
   },
   "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "fastify": {
+      "optional": true
+    },
     "firebase-admin": {
       "optional": true
     }
