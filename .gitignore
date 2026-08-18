@@ -32,3 +32,6 @@ coverage/
 # Database
 *.db
 *.sqlite
+
+# Pack artifacts
+*.tgz
