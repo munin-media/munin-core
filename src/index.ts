@@ -1,5 +1,5 @@
 /**
- * @munin/core — Zero-knowledge media memory library.
+ * @munin-media/core — Zero-knowledge media memory library.
  *
  * Library entry point. Exports the createMunin factory function and all public types.
  *
@@ -7,9 +7,9 @@
  * Node-only dependencies (better-sqlite3, firebase-admin, fastify).
  *
  * For Node-only backends, use sub-path imports:
- *   import { SQLiteBackend } from '@munin/core/sqlite';
- *   import { FirestoreBackend } from '@munin/core/firestore';
- *   import { createStorageFromEnv } from '@munin/core/config';
+ *   import { SQLiteBackend } from '@munin-media/core/sqlite';
+ *   import { FirestoreBackend } from '@munin-media/core/firestore';
+ *   import { createStorageFromEnv } from '@munin-media/core/config';
  */
 
 import type { MuninConfig } from './types/config.js';
@@ -48,8 +48,8 @@ export interface MuninInstance {
  *
  * @example
  * ```typescript
- * import { createMunin } from '@munin/core';
- * import { SQLiteBackend } from '@munin/core/sqlite';
+ * import { createMunin } from '@munin-media/core';
+ * import { SQLiteBackend } from '@munin-media/core/sqlite';
  *
  * const munin = createMunin({
  *   storage: new SQLiteBackend('./munin.db'),

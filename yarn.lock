@@ -417,9 +417,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@munin/core@workspace:.":
+"@munin-media/core@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@munin/core@workspace:."
+  resolution: "@munin-media/core@workspace:."
   dependencies:
     "@types/better-sqlite3": "npm:^7.6.0"
     "@types/node": "npm:^20.14.0"
@@ -429,11 +429,21 @@ __metadata:
     typescript: "npm:^5.5.0"
     vitest: "npm:^2.0.0"
   peerDependencies:
+    better-sqlite3: ^11.0.0
+    fastify: ^4.28.0
     firebase-admin: ^12.0.0
   dependenciesMeta:
+    better-sqlite3:
+      optional: true
+    fastify:
+      optional: true
     firebase-admin:
       optional: true
   peerDependenciesMeta:
+    better-sqlite3:
+      optional: true
+    fastify:
+      optional: true
     firebase-admin:
       optional: true
   languageName: unknown

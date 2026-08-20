@@ -1,4 +1,4 @@
-# @munin/core
+# @munin-media/core
 
 Zero-knowledge media memory service — progress tracking, ratings, recommendations, and export.
 
@@ -15,7 +15,7 @@ yarn start   # Standalone Fastify server
 ## Library Usage
 
 ```typescript
-import { createMunin, InMemoryBackend } from '@munin/core';
+import { createMunin, InMemoryBackend } from '@munin-media/core';
 
 const munin = createMunin({
   storage: new InMemoryBackend(),
@@ -148,7 +148,7 @@ STORAGE_BACKEND=firestore yarn start             # Firestore (needs credentials)
 Library consumers can also use env-based selection:
 
 ```typescript
-import { createMunin, createStorageFromEnv } from '@munin/core';
+import { createMunin, createStorageFromEnv } from '@munin-media/core';
 
 const storage = await createStorageFromEnv(); // reads STORAGE_BACKEND
 const munin = createMunin({ storage });

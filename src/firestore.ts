@@ -1,12 +1,12 @@
 /**
- * @munin/core/firestore — Firestore storage backend sub-path entry.
+ * @munin-media/core/firestore — Firestore storage backend sub-path entry.
  *
  * Node-only: requires firebase-admin (server SDK).
  * Do NOT import this from React Native / Metro bundles.
  *
  * @example
  * ```typescript
- * import { FirestoreBackend } from '@munin/core/firestore';
+ * import { FirestoreBackend } from '@munin-media/core/firestore';
  * const storage = new FirestoreBackend();
  * ```
  */

@@ -1,6 +1,6 @@
 {
-  "name": "@munin/core",
-  "version": "0.1.0",
+  "name": "@munin-media/core",
+  "version": "1.0.0",
   "description": "Zero-knowledge media memory service — progress tracking, ratings, and recommendations",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -44,7 +44,6 @@
     "lint": "tsc --noEmit",
     "start": "node dist/server.js"
   },
-  "dependencies": {},
   "optionalDependencies": {
     "better-sqlite3": "^11.0.0",
     "fastify": "^4.28.0",
@@ -72,10 +71,19 @@
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "packageManager": "yarn@4.4.0",
-  "license": "UNLICENSED",
-  "private": true
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/munin-media/munin-core.git"
+  }
 }
