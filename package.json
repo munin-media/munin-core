@@ -29,6 +29,11 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
       "require": "./dist/server.js"
+    },
+    "./mmdb": {
+      "types": "./dist/adapters/mmdb.d.ts",
+      "import": "./dist/adapters/mmdb.js",
+      "require": "./dist/adapters/mmdb.js"
     }
   },
   "scripts": {

@@ -139,3 +139,5 @@ export type { MuninEvents, ConflictDetectedEvent } from './core/events.js';
 export { MuninEventEmitter } from './core/events.js';
 export { InMemoryBackend } from './storage/memory.js';
 export { ManualEntryAdapter } from './adapters/manual.js';
+export { MmdbAdapter } from './adapters/mmdb.js';
+export type { MmdbAdapterConfig } from './adapters/mmdb.js';
