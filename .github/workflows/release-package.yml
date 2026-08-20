@@ -3,6 +3,7 @@ name: Publish Package
 on:
   push:
     branches: [master]
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -25,6 +26,8 @@ jobs:
 
       - name: Install dependencies
         run: yarn install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
         run: yarn build
@@ -33,4 +36,3 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
