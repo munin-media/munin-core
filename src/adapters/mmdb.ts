@@ -4,6 +4,9 @@
  * Downloads the combined index (gzipped JSON) from a configurable URL and provides
  * local search and lookup. The index is cached in memory with a configurable TTL.
  *
+ * Credits index is lazy-loaded on first credits-related call to avoid unnecessary
+ * bandwidth/memory for consumers that only need title search.
+ *
  * Platform-agnostic: uses DecompressionStream (Node 18+ and modern browsers).
  */
 
@@ -51,6 +54,51 @@ interface MmdbIndex {
   series: MmdbSeriesEntry[];
 }
 
+// --- Credits index types ---
+
+/** Credit entry in the credits_by_movie map (person who worked on a title) */
+export interface CreditEntry {
+  person_id: string;
+  name: string;
+  role: string;
+  character?: string;
+  department?: string;
+  order?: number;
+}
+
+/** Credit entry in the credits_by_person map (title a person worked on) */
+export interface PersonCreditEntry {
+  title_id: string;
+  title: string;
+  role: string;
+  character?: string;
+  department?: string;
+  year?: number;
+}
+
+interface MmdbCreditsIndex {
+  version: number;
+  built_at: string;
+  stats: { total_credits: number; total_people: number; total_titles: number };
+  credits_by_movie: Record<string, CreditEntry[]>;
+  credits_by_person: Record<string, PersonCreditEntry[]>;
+  people: Record<string, { id: string; name: string }>;
+}
+
+export interface PersonInfo {
+  id: string;
+  name: string;
+}
+
+export interface FilmographyEntry {
+  titleId: string;
+  title: string;
+  role: string;
+  character?: string;
+  department?: string;
+  year?: number;
+}
+
 // --- Search index types ---
 
 interface IndexedEntry {
@@ -60,19 +108,29 @@ interface IndexedEntry {
   type: 'movie' | 'series';
 }
 
+interface IndexedPerson {
+  id: string;
+  name: string;
+  tokens: string[];
+}
+
 // --- Configuration ---
 
 export interface MmdbAdapterConfig {
   /** URL to the gzipped combined index. Default: GitHub Release URL */
   indexUrl?: string;
+  /** URL to the gzipped combined credits index. Default: GitHub Release URL */
+  creditsUrl?: string;
   /** Cache TTL in ms (default: 24 hours) */
   maxAge?: number;
-  /** Custom fetch function for testing */
+  /** Custom fetch function for testing or custom transport */
   fetch?: typeof globalThis.fetch;
 }
 
 const DEFAULT_INDEX_URL =
   'https://github.com/mimir-media-db/mmdb/releases/latest/download/combined-index.json.gz';
+const DEFAULT_CREDITS_URL =
+  'https://github.com/mimir-media-db/mmdb/releases/latest/download/combined-credits-index.json.gz';
 const DEFAULT_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
 /** Articles to strip from titles during tokenization */
@@ -86,6 +144,14 @@ function tokenize(text: string): string[] {
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
     .filter((t) => t.length > 0 && !ARTICLES.has(t));
+}
+
+function tokenizeName(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 0);
 }
 
 function scoreMatch(queryTokens: string[], entryTokens: string[]): number {
@@ -141,22 +207,34 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
   readonly name = 'mmdb';
 
   private readonly indexUrl: string;
+  private readonly creditsUrl: string;
   private readonly maxAge: number;
   private readonly fetchFn: typeof globalThis.fetch;
 
+  // Title index state
   private movieMap: Map<string, MmdbMovieEntry> = new Map();
   private seriesMap: Map<string, MmdbSeriesEntry> = new Map();
   private searchIndex: IndexedEntry[] = [];
   private indexStats: MmdbIndexStats | null = null;
   private loadedAt: number | null = null;
 
+  // Credits index state (lazy-loaded)
+  private creditsByMovie: Map<string, CreditEntry[]> = new Map();
+  private creditsByPerson: Map<string, PersonCreditEntry[]> = new Map();
+  private peopleMap: Map<string, PersonInfo> = new Map();
+  private peopleSearchIndex: IndexedPerson[] = [];
+  private creditsLoaded = false;
+  private creditsLoadedAt: number | null = null;
+  private creditsLoadPromise: Promise<void> | null = null;
+
   constructor(config?: MmdbAdapterConfig) {
     this.indexUrl = config?.indexUrl ?? DEFAULT_INDEX_URL;
+    this.creditsUrl = config?.creditsUrl ?? DEFAULT_CREDITS_URL;
     this.maxAge = config?.maxAge ?? DEFAULT_MAX_AGE;
     this.fetchFn = config?.fetch ?? globalThis.fetch;
   }
 
-  /** Download and parse the combined index. Call once at startup. */
+  /** Download and parse the combined title index. Call once at startup. */
   async initialize(): Promise<void> {
     const response = await this.fetchFn(this.indexUrl);
 
@@ -196,10 +274,15 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
     this.loadedAt = Date.now();
   }
 
-  /** Check if the index is loaded and not expired */
+  /** Check if the title index is loaded and not expired */
   get isReady(): boolean {
     if (this.loadedAt === null) return false;
     return Date.now() - this.loadedAt < this.maxAge;
+  }
+
+  /** Check if the credits index has been loaded */
+  get isCreditsLoaded(): boolean {
+    return this.creditsLoaded;
   }
 
   /** Get index statistics */
@@ -287,6 +370,66 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
     return [];
   }
 
+  // --- Credits methods (lazy-loads credits index on first call) ---
+
+  /** Get all credits for a given title (cast + crew). Lazy-loads credits index. */
+  async getCreditsForTitle(titleId: string): Promise<CreditEntry[]> {
+    await this.ensureCreditsLoaded();
+    return this.creditsByMovie.get(titleId) ?? [];
+  }
+
+  /** Get filmography for a person. Lazy-loads credits index. */
+  async getFilmography(personId: string): Promise<FilmographyEntry[]> {
+    await this.ensureCreditsLoaded();
+    const credits = this.creditsByPerson.get(personId);
+    if (!credits) return [];
+
+    return credits.map((c) => ({
+      titleId: c.title_id,
+      title: c.title,
+      role: c.role,
+      character: c.character,
+      department: c.department,
+      year: c.year,
+    }));
+  }
+
+  /** Get person info by ID. Lazy-loads credits index. */
+  async getPerson(personId: string): Promise<PersonInfo | null> {
+    await this.ensureCreditsLoaded();
+    return this.peopleMap.get(personId) ?? null;
+  }
+
+  /** Search people by name. Lazy-loads credits index. */
+  async searchPeople(query: string, options?: { limit?: number }): Promise<PersonInfo[]> {
+    await this.ensureCreditsLoaded();
+    const limit = options?.limit ?? 20;
+    const queryTokens = tokenizeName(query);
+
+    if (queryTokens.length === 0) return [];
+
+    const scored: Array<{ person: IndexedPerson; score: number }> = [];
+
+    for (const person of this.peopleSearchIndex) {
+      const score = scoreMatch(queryTokens, person.tokens);
+      if (score > 0) {
+        scored.push({ person, score });
+      }
+    }
+
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.person.name.localeCompare(b.person.name);
+    });
+
+    return scored.slice(0, limit).map((s) => ({
+      id: s.person.id,
+      name: s.person.name,
+    }));
+  }
+
+  // --- External ID helpers ---
+
   /** Get TMDB ID for poster lookups */
   async getTmdbId(titleId: string): Promise<number | null> {
     const movie = this.movieMap.get(titleId);
@@ -310,6 +453,64 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
   }
 
   // --- Private helpers ---
+
+  /**
+   * Ensures credits index is loaded. Uses a singleton promise so multiple
+   * concurrent calls don't trigger duplicate downloads.
+   */
+  private async ensureCreditsLoaded(): Promise<void> {
+    if (this.creditsLoaded && this.creditsLoadedAt !== null) {
+      if (Date.now() - this.creditsLoadedAt < this.maxAge) return;
+      // Expired — reload
+      this.creditsLoaded = false;
+      this.creditsLoadPromise = null;
+    }
+
+    if (!this.creditsLoaded && !this.creditsLoadPromise) {
+      this.creditsLoadPromise = this.loadCreditsIndex();
+    }
+
+    await this.creditsLoadPromise;
+  }
+
+  private async loadCreditsIndex(): Promise<void> {
+    const response = await this.fetchFn(this.creditsUrl);
+
+    if (!response.ok) {
+      this.creditsLoadPromise = null;
+      throw new Error(`Failed to fetch MMDB credits index: ${response.status} ${response.statusText}`);
+    }
+
+    const json = await decompressGzip(response);
+    const index: MmdbCreditsIndex = JSON.parse(json);
+
+    // Build credits lookup maps
+    this.creditsByMovie.clear();
+    this.creditsByPerson.clear();
+    this.peopleMap.clear();
+    this.peopleSearchIndex = [];
+
+    for (const [movieId, credits] of Object.entries(index.credits_by_movie)) {
+      this.creditsByMovie.set(movieId, credits);
+    }
+
+    for (const [personId, credits] of Object.entries(index.credits_by_person)) {
+      this.creditsByPerson.set(personId, credits);
+    }
+
+    for (const [personId, person] of Object.entries(index.people)) {
+      const info: PersonInfo = { id: personId, name: person.name };
+      this.peopleMap.set(personId, info);
+      this.peopleSearchIndex.push({
+        id: personId,
+        name: person.name,
+        tokens: tokenizeName(person.name),
+      });
+    }
+
+    this.creditsLoaded = true;
+    this.creditsLoadedAt = Date.now();
+  }
 
   private movieToTitleMetadata(movie: MmdbMovieEntry): TitleMetadata {
     return {
