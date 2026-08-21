@@ -231,12 +231,56 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
     this.indexUrl = config?.indexUrl ?? DEFAULT_INDEX_URL;
     this.creditsUrl = config?.creditsUrl ?? DEFAULT_CREDITS_URL;
     this.maxAge = config?.maxAge ?? DEFAULT_MAX_AGE;
-    this.fetchFn = config?.fetch ?? globalThis.fetch;
+    this.fetchFn = config?.fetch ?? globalThis.fetch.bind(globalThis);
+  }
+
+  /**
+   * Fetch a URL handling GitHub Release CORS issues.
+   * GitHub release download URLs (github.com/...releases/...) redirect to a CDN
+   * that doesn't set CORS headers, blocking browser fetch.
+   * This method detects GitHub release URLs and fetches via the API instead.
+   */
+  private async fetchWithCors(url: string): Promise<Response> {
+    // Match GitHub release download URLs
+    const releaseMatch = url.match(
+      /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\/(?:latest\/download|download\/[^/]+)\/(.+)$/
+    );
+
+    if (!releaseMatch) {
+      return this.fetchFn(url);
+    }
+
+    const [, owner, repo, filename] = releaseMatch;
+
+    // Step 1: Get release metadata via API (CORS-friendly)
+    const releaseUrl = url.includes('/latest/download/')
+      ? `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+      : `https://api.github.com/repos/${owner}/${repo}/releases/tags/${url.split('/download/')[1].split('/')[0]}`;
+
+    const releaseRes = await this.fetchFn(releaseUrl, {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    });
+
+    if (!releaseRes.ok) {
+      throw new Error(`Failed to fetch release metadata: ${releaseRes.status}`);
+    }
+
+    const release = await releaseRes.json() as { assets?: Array<{ name: string; url: string }> };
+    const asset = release.assets?.find((a) => a.name === filename);
+
+    if (!asset) {
+      throw new Error(`Asset "${filename}" not found in release`);
+    }
+
+    // Step 2: Download asset via API URL (CORS-friendly)
+    return this.fetchFn(asset.url, {
+      headers: { Accept: 'application/octet-stream' },
+    });
   }
 
   /** Download and parse the combined title index. Call once at startup. */
   async initialize(): Promise<void> {
-    const response = await this.fetchFn(this.indexUrl);
+    const response = await this.fetchWithCors(this.indexUrl);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch MMDB index: ${response.status} ${response.statusText}`);
@@ -474,7 +518,7 @@ export class MmdbAdapter implements MediaDatabaseAdapter {
   }
 
   private async loadCreditsIndex(): Promise<void> {
-    const response = await this.fetchFn(this.creditsUrl);
+    const response = await this.fetchWithCors(this.creditsUrl);
 
     if (!response.ok) {
       this.creditsLoadPromise = null;
